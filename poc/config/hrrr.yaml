@@ -51,11 +51,11 @@ source:
 
 transforms:
   horizontal_regrid:
-    target_grid_path: hrrr_06km.nc
+    target_grid_path: config/hrrr_06km.nc
     regridder_kwargs:
       method: conservative
       reuse_weights: True
-      filename: conservative_weights_hrrr.nc
+      filename: config/conservative_weights_hrrr.nc
   rotate_vectors:
     vector_pairs:
       - ["u", "v"]
