@@ -1,0 +1,82 @@
+mover:
+  name: datamover
+  batch_size: 1
+
+directories:
+  zarr: hrrr.zarr
+  cache: cache/hrrr
+  logs: logs/hrrr
+
+source:
+  name: aws_hrrr_archive
+  t0:
+    start: 2026-01-12T06
+    end: 2026-01-22T12
+    freq: 6h
+
+  fhr:
+    start: 0
+    end: 0
+    step: 1
+
+  variables:
+        - gh
+        - u
+        - v
+        - w
+        - t
+        - q
+        - sp
+        - u10
+        - v10
+        - t2m
+        - t_surface
+        - sh2
+        - lsm
+        - orog
+
+  levels:
+        - 100
+        - 150
+        - 200
+        - 250
+        - 300
+        - 400
+        - 500
+        - 600
+        - 700
+        - 850
+        - 925
+        - 1000
+
+transforms:
+  horizontal_regrid:
+    target_grid_path: config/hrrr_06km.nc
+    regridder_kwargs:
+      method: conservative
+      reuse_weights: True
+      filename: config/conservative_weights_hrrr.nc
+  rotate_vectors:
+    vector_pairs:
+      - ["u", "v"]
+      - ["u10", "v10"]
+
+target:
+  name: anemoi_inference_with_forcings
+  sort_channels_by_levels: True
+  forcings:
+    - cos_latitude
+    - sin_latitude
+    - cos_longitude
+    - sin_longitude
+    - cos_julian_day
+    - sin_julian_day
+    - cos_local_time
+    - sin_local_time
+    - insolation
+
+  chunks:
+    time: 1
+    variable: -1
+    ensemble: 1
+    cell: -1
