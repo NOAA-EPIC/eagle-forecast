@@ -1,6 +1,6 @@
 mover:
   name: datamover
-  batch_size: 1
+  batch_size: 4
 
 directories:
   zarr: gfs.zarr
@@ -56,6 +56,7 @@ source:
 target:
   name: anemoi_inference_with_forcings
   sort_channels_by_levels: True
+  multistep_input: 2
   forcings:
     - cos_latitude
     - sin_latitude

@@ -1,6 +1,6 @@
 mover:
   name: datamover
-  batch_size: 1
+  batch_size: 4
 
 directories:
   zarr: hrrr.zarr
@@ -51,11 +51,11 @@ source:
 
 transforms:
   horizontal_regrid:
-    target_grid_path: config/hrrr_06km.nc
+    target_grid_path: hrrr_06km.nc
     regridder_kwargs:
       method: conservative
       reuse_weights: True
-      filename: config/conservative_weights_hrrr.nc
+      filename: conservative_weights_hrrr.nc
   rotate_vectors:
     vector_pairs:
       - ["u", "v"]
@@ -64,6 +64,7 @@ transforms:
 target:
   name: anemoi_inference_with_forcings
   sort_channels_by_levels: True
+  multistep_input: 2
   forcings:
     - cos_latitude
     - sin_latitude

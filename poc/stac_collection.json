@@ -1,0 +1,128 @@
+{
+    "type": "Collection",
+    "stac_version": "1.0.0",
+    "id": "nested-eagle",
+    "title": "NOAA Nested-EAGLE Weather Forecasts",
+    "description": "AI weather forecasts from the Nested-EAGLE model. Produces 360-hour forecasts every 6 hours by nesting a high-resolution HRRR grid (6km, CONUS) inside a global GFS grid (0.25°). Each forecast cycle produces separate global and CONUS regional files.",
+    "license": "proprietary",
+    "keywords": [
+        "weather",
+        "forecast",
+        "AI",
+        "NOAA",
+        "EAGLE",
+        "HRRR",
+        "GFS",
+        "CONUS",
+        "global"
+    ],
+    "providers": [
+        {
+            "name": "NOAA/EPIC",
+            "roles": [
+                "producer"
+            ],
+            "url": "https://epic.noaa.gov/"
+        },
+        {
+            "name": "Microsoft Planetary Computer",
+            "roles": [
+                "host"
+            ],
+            "url": "https://planetarycomputer.microsoft.com/"
+        }
+    ],
+    "extent": {
+        "spatial": {
+            "bbox": [
+                [
+                    -180.0,
+                    -90.0,
+                    180.0,
+                    90.0
+                ]
+            ]
+        },
+        "temporal": {
+            "interval": [
+                [
+                    "2026-04-01T00:00:00Z",
+                    null
+                ]
+            ]
+        }
+    },
+    "summaries": {
+        "nested-eagle:output_type": [
+            "CONUS & Global Domains"
+        ],
+        "nested-eagle:variables": [
+            "10m_meridional_wind",
+            "10m_zonal_wind",
+            "2m_specific_humidity",
+            "2m_temperature",
+            "80m_meridional_wind",
+            "80m_zonal_wind",
+            "geopotential_height",
+            "meridional_wind",
+            "specific_humidity",
+            "surface_pressure",
+            "surface_temperature",
+            "temperature",
+            "total_precipitation_6hr",
+            "vertical_velocity",
+            "zonal_wind"
+        ],
+        "nested-eagle:pressure_levels": [
+            100,
+            150,
+            200,
+            250,
+            300,
+            400,
+            500,
+            600,
+            700,
+            850,
+            925,
+            1000
+        ],
+        "nested-eagle:global_resolution_deg": [
+            0.25
+        ],
+        "nested-eagle:conus_resolution_km": [
+            6
+        ],
+        "forecast:horizon": [
+            "PT360H"
+        ],
+        "forecast:step_hours": [
+            6
+        ]
+    },
+    "item_assets": {
+        "global": {
+            "type": "application/netcdf",
+            "title": "Global Forecast (GFS grid, 0.25°)",
+            "roles": [
+                "data"
+            ],
+            "description": "Global forecast on 0.25° grid"
+        },
+        "conus": {
+            "type": "application/netcdf",
+            "title": "CONUS Forecast (HRRR grid, 6km)",
+            "roles": [
+                "data"
+            ],
+            "description": "CONUS regional forecast on 6km grid"
+        }
+    },
+    "links": [
+        {
+            "rel": "self",
+            "href": "./collection.json",
+            "type": "application/json"
+        }
+    ]
+}
