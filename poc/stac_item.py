@@ -50,7 +50,7 @@ def _base_properties(init_utc, forecast_end, version):
         "end_datetime": forecast_end.isoformat(),
         "forecast:reference_time": init_utc.isoformat(),
         "forecast:horizon": f"PT{LEAD_TIME}H",
-        "forecast:step_hours": FREQ,
+        "forecast:step_hours": 6,
         "nested-eagle:version": version,
         "nested-eagle:variables": VARIABLES,
         "nested-eagle:pressure_levels": PRESSURE_LEVELS,

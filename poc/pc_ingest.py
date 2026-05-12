@@ -33,7 +33,7 @@ from config import (
 
 def _get_auth_headers(credential):
     """Get an Authorization header with a bearer token for GeoCatalog."""
-    token = credential.get_token(GEOCATALOG_AUDIENCE)
+    token = credential.get_token(f"{GEOCATALOG_AUDIENCE}/.default")
     return {"Authorization": f"Bearer {token.token}"}
 
 
@@ -115,7 +115,7 @@ def ingest_stac_items(
     pp_item = stac_item.create_postprocessed_stac_item(
         ic_timestamp, version, output_storage_url
     )
-    
+
     items = [pp_item]
 
     # Append SAS token to asset HREFs if provided
@@ -140,6 +140,7 @@ def ingest_stac_items(
     # Poll for completion
     location = response.headers.get("location")
     if location:
+        print(f"  Ingestion status URL: {location}")
         # Refresh token for polling (may need fresh headers)
         headers = _get_auth_headers(credential)
         status = _poll_ingestion(location, headers)

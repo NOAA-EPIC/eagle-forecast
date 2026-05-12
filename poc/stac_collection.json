@@ -121,7 +121,7 @@
     "links": [
         {
             "rel": "self",
-            "href": "./collection.json",
+            "href": "./stac_collection.json",
             "type": "application/json"
         }
     ]
