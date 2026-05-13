@@ -1,6 +1,6 @@
 # Nested-EAGLE inference container (Azure AI Foundry online endpoint)
-# Base: Azure ML CUDA image with H100 support (CUDA 12.1, cuDNN 8)
-FROM mcr.microsoft.com/azureml/openmpi4.1.0-cuda12.1-cudnn8-ubuntu22.04:latest
+# Base: Azure ML CUDA image with H100 support (CUDA 12.4, cuDNN 8)
+FROM mcr.microsoft.com/azureml/openmpi5.0-cuda12.4-ubuntu22.04:latest
 
 WORKDIR /app
 
@@ -14,8 +14,6 @@ RUN pip install 'flash-attn<2.8' --no-build-isolation --no-cache-dir
 
 # Copy scoring script and inference helpers from poc/
 COPY score.py /app/score.py
-COPY postproc.py /app/postproc.py
-COPY utils.py /app/utils.py
 
 # AML managed online endpoint entry point
 ENV AZUREML_ENTRY_SCRIPT=/app/score.py
