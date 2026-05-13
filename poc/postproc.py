@@ -1,4 +1,5 @@
 import argparse
+import glob
 import os
 import yaml
 from eagle.tools.prewxvx import main as prewxvx
@@ -6,6 +7,7 @@ from eagle.tools.prewxvx import main as prewxvx
 import utils
 import stac_item
 import pc_ingest
+from cf_patch import add_cf_metadata
 
 from config import (
     VERSION,
@@ -15,6 +17,22 @@ from config import (
     GEOCATALOG_URL,
     COLLECTION_ID,
 )
+
+
+def _patch_outputs_with_cf(output_path: str, ic_timestamp) -> None:
+    """
+    Add CF axis metadata to every NetCDF prewxvx just wrote so MPC Pro
+    GeoCatalog's data-cube transformer can ingest them without falling
+    back to cf_xarray.guess_coord_axis (which raises KeyError: 'X').
+    """
+    folder_structure = ic_timestamp.strftime("%Y/%m/%d/%H")
+    out_dir = f"{output_path}/{folder_structure}"
+    for nc in glob.glob(os.path.join(out_dir, "*.nc")):
+        try:
+            mapping = add_cf_metadata(nc)
+            print(f"CF-patched {nc}: {mapping}")
+        except Exception as e:
+            print(f"WARNING: could not CF-patch {nc}: {e}")
 
 
 def prep_config(
@@ -97,6 +115,11 @@ def run(
     prewxvx(lam_config)
 
     prewxvx(global_config)
+
+    # Patch CF axis metadata onto the NetCDFs before building the STAC item
+    # and uploading. Without this, GeoCatalog's cube transformer raises
+    # KeyError: 'X' during single-item ingestion.
+    _patch_outputs_with_cf(output_path, ic_timestamp)
 
     # create and upload stac items to blob store
     stac_item.write_stac_items(

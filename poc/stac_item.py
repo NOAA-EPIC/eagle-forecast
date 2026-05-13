@@ -40,16 +40,46 @@ from config import (
 
 COLLECTION_RELATIVE_HREF = "../../../../../stac_collection.json"
 
+# STAC datacube extension: lets GeoCatalog's cube transformer know the
+# NetCDF dimensions explicitly. Belt-and-suspenders with the CF axis
+# metadata written by cf_patch.add_cf_metadata.
+DATACUBE_EXT = "https://stac-extensions.github.io/datacube/v2.2.0/schema.json"
+
+
+def _cube_dimensions(bbox):
+    """``cube:dimensions`` payload keyed by the coord names cf_patch writes."""
+    w, s, e, n = bbox
+    return {
+        "lon": {
+            "type": "spatial",
+            "axis": "x",
+            "extent": [w, e],
+            "reference_system": 4326,
+        },
+        "lat": {
+            "type": "spatial",
+            "axis": "y",
+            "extent": [s, n],
+            "reference_system": 4326,
+        },
+        "time": {"type": "temporal", "extent": [None, None]},
+    }
+
 
 def _base_properties(init_utc, forecast_end, version):
-    """Shared STAC properties for both raw and post-processed items."""
+    """Shared STAC properties for both raw and post-processed items.
+
+    Forecast-extension keys follow v0.2.0 schema:
+      - ``forecast:reference_datetime`` (was ``forecast:reference_time``)
+      - ``forecast:duration``           (was ``forecast:step_hours``; ISO 8601)
+    """
     return {
         "datetime": None,
         "start_datetime": init_utc.isoformat(),
         "end_datetime": forecast_end.isoformat(),
-        "forecast:reference_time": init_utc.isoformat(),
+        "forecast:reference_datetime": init_utc.isoformat(),
         "forecast:horizon": f"PT{LEAD_TIME}H",
-        "forecast:step_hours": 6,
+        "forecast:duration": "PT6H",
         "nested-eagle:version": version,
         "nested-eagle:variables": VARIABLES,
         "nested-eagle:pressure_levels": PRESSURE_LEVELS,
@@ -105,6 +135,7 @@ def create_postprocessed_stac_item(
     return {
         "type": "Feature",
         "stac_version": "1.0.0",
+        "stac_extensions": [DATACUBE_EXT],
         "id": f"nested-eagle-{init_utc.strftime('%Y%m%d-%H')}z",
         "geometry": _make_geometry(BBOX_GLOBAL),
         "bbox": BBOX_GLOBAL,
@@ -115,6 +146,10 @@ def create_postprocessed_stac_item(
         "collection": COLLECTION_ID,
         "links": _stac_links(),
         "assets": {
+            # NOTE: ``roles`` is intentionally omitted (or could be set to e.g.
+            # ["forecast"] / ["reference"]). Setting roles=["data"] triggers
+            # GeoCatalog's xstac/cf_xarray metadata-enrichment pass, which
+            # cannot parse these NetCDFs and causes ingestion to fail.
             "global": {
                 "href": global_href,
                 "type": "application/netcdf",
@@ -123,7 +158,8 @@ def create_postprocessed_stac_item(
                     f"Global forecast on 0.25° grid, "
                     f"{LEAD_TIME}h from {init_utc.strftime('%Y-%m-%d %H:%M')} UTC"
                 ),
-                "roles": ["data"],
+                "cube:dimensions": _cube_dimensions(BBOX_GLOBAL),
+                "xarray:open_kwargs": {"x_dimension": "lon", "y_dimension": "lat"},
             },
             "conus": {
                 "href": conus_href,
@@ -133,8 +169,9 @@ def create_postprocessed_stac_item(
                     f"CONUS regional forecast on 6km grid, "
                     f"{LEAD_TIME}h from {init_utc.strftime('%Y-%m-%d %H:%M')} UTC"
                 ),
-                "roles": ["data"],
                 "proj:bbox": BBOX_CONUS,
+                "cube:dimensions": _cube_dimensions(BBOX_CONUS),
+                "xarray:open_kwargs": {"x_dimension": "lon", "y_dimension": "lat"},
             },
         },
     }
