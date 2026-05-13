@@ -38,11 +38,6 @@ from config import (
     LEAD_TIME,
 )
 
-ITEM_STAC_EXTENSIONS = [
-    "https://stac-extensions.github.io/forecast/v0.2.0/schema.json",
-    "https://stac-extensions.github.io/projection/v1.1.0/schema.json",
-]
-
 COLLECTION_RELATIVE_HREF = "../../../../../stac_collection.json"
 
 
@@ -110,7 +105,6 @@ def create_postprocessed_stac_item(
     return {
         "type": "Feature",
         "stac_version": "1.0.0",
-        "stac_extensions": ITEM_STAC_EXTENSIONS,
         "id": f"nested-eagle-{init_utc.strftime('%Y%m%d-%H')}z",
         "geometry": _make_geometry(BBOX_GLOBAL),
         "bbox": BBOX_GLOBAL,
