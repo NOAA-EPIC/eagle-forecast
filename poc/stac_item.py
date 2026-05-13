@@ -40,6 +40,31 @@ from config import (
 
 COLLECTION_RELATIVE_HREF = "../../../../../stac_collection.json"
 
+# STAC datacube extension: lets GeoCatalog's cube transformer know the
+# NetCDF dimensions explicitly. Belt-and-suspenders with the CF axis
+# metadata written by cf_patch.add_cf_metadata.
+DATACUBE_EXT = "https://stac-extensions.github.io/datacube/v2.2.0/schema.json"
+
+
+def _cube_dimensions(bbox):
+    """``cube:dimensions`` payload keyed by the coord names cf_patch writes."""
+    w, s, e, n = bbox
+    return {
+        "lon": {
+            "type": "spatial",
+            "axis": "x",
+            "extent": [w, e],
+            "reference_system": 4326,
+        },
+        "lat": {
+            "type": "spatial",
+            "axis": "y",
+            "extent": [s, n],
+            "reference_system": 4326,
+        },
+        "time": {"type": "temporal", "extent": [None, None]},
+    }
+
 
 def _base_properties(init_utc, forecast_end, version):
     """Shared STAC properties for both raw and post-processed items."""
@@ -105,6 +130,7 @@ def create_postprocessed_stac_item(
     return {
         "type": "Feature",
         "stac_version": "1.0.0",
+        "stac_extensions": [DATACUBE_EXT],
         "id": f"nested-eagle-{init_utc.strftime('%Y%m%d-%H')}z",
         "geometry": _make_geometry(BBOX_GLOBAL),
         "bbox": BBOX_GLOBAL,
@@ -124,6 +150,8 @@ def create_postprocessed_stac_item(
                     f"{LEAD_TIME}h from {init_utc.strftime('%Y-%m-%d %H:%M')} UTC"
                 ),
                 "roles": ["data"],
+                "cube:dimensions": _cube_dimensions(BBOX_GLOBAL),
+                "xarray:open_kwargs": {"x_dimension": "lon", "y_dimension": "lat"},
             },
             "conus": {
                 "href": conus_href,
@@ -135,6 +163,8 @@ def create_postprocessed_stac_item(
                 ),
                 "roles": ["data"],
                 "proj:bbox": BBOX_CONUS,
+                "cube:dimensions": _cube_dimensions(BBOX_CONUS),
+                "xarray:open_kwargs": {"x_dimension": "lon", "y_dimension": "lat"},
             },
         },
     }
