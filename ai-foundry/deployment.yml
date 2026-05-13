@@ -1,0 +1,81 @@
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
+
+# Deployment for the async Nested-EAGLE endpoint.
+#
+# References:
+#   - Environment:  nested-eagle-inference:10  (custom container built in AML Studio)
+#   - Model:        nested-eagle:2             (registered checkpoint folder)
+#   - Code:         ./                         (this ai-foundry/ directory — uses score_async.py)
+#
+# Deploy:
+#   az ml online-deployment create -f deployment.yml -g <rg> -w <workspace> --all-traffic
+#
+# Update only:
+#   az ml online-deployment update -f deployment.yml -g <rg> -w <workspace>
+
+name: blue
+endpoint_name: nested-eagle-async
+description: Async (submit/poll) Nested-EAGLE deployment on a single H100 (or A100).
+
+# --- Code & entry point ------------------------------------------------------
+code_configuration:
+  code: ./                          # uploads everything in ai-foundry/ to the container
+  scoring_script: score_async.py    # NOTE: async script, NOT the original score.py
+
+# --- Environment + model -----------------------------------------------------
+environment: azureml:nested-eagle-inference:10
+model: azureml:nested-eagle:2
+
+# --- Compute -----------------------------------------------------------------
+# Choose ONE based on quota in the workspace's region.
+instance_type: Standard_NC40ads_H100_v5     # H100 80GB (preferred)
+# instance_type: Standard_NC24ads_A100_v4   # A100 80GB (fallback)
+
+# Single instance keeps job state on one container (the score_async.py job
+# store lives in /tmp). Set to >1 only if you also enable a cross-replica
+# job store (see ENABLE_BLOB_JOB_STORE in score_async.py).
+instance_count: 1
+
+# --- Environment variables (overrides for score_async.py) --------------------
+environment_variables:
+  # Path where AML mounts the registered model. Confirm this matches the actual
+  # mount in a test job; fallback default in score_async.py is /mnt/models/.
+  CHECKPOINT_PATH: "/var/azureml-app/azureml-models/nested-eagle/2/inference-last.ckpt"
+  GRID_FILE:       "/var/azureml-app/azureml-models/nested-eagle/2/hrrr_06km.nc"
+
+  # Optional: upload forecast NetCDF to blob and return signed URLs to the client.
+  # Leave UPLOAD_RESULTS=false during initial testing; switch on once blob RBAC is verified.
+  UPLOAD_RESULTS: "false"
+  # OUTPUT_BLOB_ACCOUNT_URL: "https://eagleforecasts.blob.core.windows.net"
+  # OUTPUT_BLOB_CONTAINER:   "nested-eagle-endpoint-outputs"
+  # OUTPUT_BLOB_PREFIX:      "endpoint/"
+  # AZURE_CLIENT_ID:         "689fdacf-a084-4d89-ac32-c49d004fcdcf"
+
+  # Optional tuning
+  LOG_LEVEL: "INFO"
+  JOB_TTL_SECONDS: "86400"
+
+# --- Request handling --------------------------------------------------------
+# Every request is now short (submit returns in <1s, status in <100ms),
+# so 30s is plenty. Do NOT raise this to 180s thinking it helps — the worker
+# thread runs independently of the HTTP request.
+request_settings:
+  request_timeout_ms: 30000
+  max_concurrent_requests_per_instance: 8
+  max_queue_wait_ms: 30000
+
+# --- Probes ------------------------------------------------------------------
+# Checkpoint mount + container start can take a few minutes. Give it room.
+liveness_probe:
+  initial_delay: 600
+  period: 30
+  timeout: 30
+  failure_threshold: 3
+  success_threshold: 1
+
+readiness_probe:
+  initial_delay: 600
+  period: 30
+  timeout: 30
+  failure_threshold: 30
+  success_threshold: 1

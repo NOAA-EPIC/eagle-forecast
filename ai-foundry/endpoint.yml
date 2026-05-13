@@ -1,0 +1,15 @@
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineEndpoint.schema.json
+
+# Managed online endpoint for Nested-EAGLE async inference.
+#
+# Usage:
+#   az ml online-endpoint create -f endpoint.yml -g <rg> -w <workspace>
+#
+# After this succeeds, deploy with deployment.yml:
+#   az ml online-deployment create -f deployment.yml -g <rg> -w <workspace> --all-traffic
+
+name: nested-eagle-async
+description: |
+  Nested-EAGLE 240h forecast endpoint. Implements an async submit/poll
+  pattern so 6+ minute inferences fit within AML's 180s gateway timeout.
+auth_mode: key

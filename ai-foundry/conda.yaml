@@ -1,0 +1,26 @@
+name: eagle_foundry
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12.12
+  - ufs2arco
+  - pip
+  - pip:
+      - anemoi-datasets==0.5.30
+      - anemoi-graphs==0.8.2
+      - anemoi-models==0.11.3
+      - anemoi-transform==0.1.21
+      - anemoi-utils==0.4.42
+      - anemoi-inference==0.9.1
+      - "torch<2.7"
+      - eagle-tools
+      - azureml-core
+      - azureml-defaults       # required for AML managed online endpoint
+      - azure-storage-blob
+      - azure-identity
+      - netCDF4
+      - pyyaml
+      - pandas
+      - xarray
+      - numpy
