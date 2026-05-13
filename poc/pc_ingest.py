@@ -15,6 +15,7 @@ Usage (standalone):
   ingest_stac_items(ic_timestamp, version, geocatalog_url, collection_id)
 """
 
+import os
 import time
 from datetime import datetime
 
@@ -35,6 +36,29 @@ def _get_auth_headers(credential):
     """Get an Authorization header with a bearer token for GeoCatalog."""
     token = credential.get_token(f"{GEOCATALOG_AUDIENCE}/.default")
     return {"Authorization": f"Bearer {token.token}"}
+
+
+def _get_credential():
+    """
+    Build a DefaultAzureCredential with optional user-assigned MI pinning.
+
+    If AZURE_CLIENT_ID is set, DefaultAzureCredential will use that managed
+    identity in cloud environments that support MI. If not set, the default
+    chain is used, which keeps local development behavior intact.
+    """
+    mi_client_id = os.getenv("AZURE_CLIENT_ID")
+
+    credential = DefaultAzureCredential(
+        managed_identity_client_id=mi_client_id,
+        exclude_interactive_browser_credential=True,
+    )
+
+    if mi_client_id:
+        print(f"  Auth: using managed identity client id from AZURE_CLIENT_ID")
+    else:
+        print("  Auth: using DefaultAzureCredential chain (AZURE_CLIENT_ID not set)")
+
+    return credential
 
 
 def _post_items(geocatalog_url, collection_id, items, headers):
@@ -127,7 +151,7 @@ def ingest_stac_items(
                 asset["href"] = f"{href}{separator}{sas_token}"
 
     # Authenticate
-    credential = DefaultAzureCredential()
+    credential = _get_credential()
     headers = _get_auth_headers(credential)
 
     # POST items

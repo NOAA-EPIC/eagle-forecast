@@ -29,8 +29,6 @@ from datetime import timezone
 
 import pandas as pd
 
-import utils
-
 from config import (
     COLLECTION_ID,
     BBOX_CONUS,
@@ -38,8 +36,14 @@ from config import (
     VARIABLES,
     PRESSURE_LEVELS,
     LEAD_TIME,
-    FREQ,
 )
+
+ITEM_STAC_EXTENSIONS = [
+    "https://stac-extensions.github.io/forecast/v0.2.0/schema.json",
+    "https://stac-extensions.github.io/projection/v1.1.0/schema.json",
+]
+
+COLLECTION_RELATIVE_HREF = "../../../../../stac_collection.json"
 
 
 def _base_properties(init_utc, forecast_end, version):
@@ -73,10 +77,11 @@ def _stac_links():
     return [
         {
             "rel": "collection",
-            "href": "../../collection.json",
+            "href": COLLECTION_RELATIVE_HREF,
             "type": "application/json",
         },
-        {"rel": "parent", "href": "../../collection.json", "type": "application/json"},
+        {"rel": "parent", "href": COLLECTION_RELATIVE_HREF, "type": "application/json"},
+        {"rel": "root", "href": COLLECTION_RELATIVE_HREF, "type": "application/json"},
     ]
 
 
@@ -105,6 +110,7 @@ def create_postprocessed_stac_item(
     return {
         "type": "Feature",
         "stac_version": "1.0.0",
+        "stac_extensions": ITEM_STAC_EXTENSIONS,
         "id": f"nested-eagle-{init_utc.strftime('%Y%m%d-%H')}z",
         "geometry": _make_geometry(BBOX_GLOBAL),
         "bbox": BBOX_GLOBAL,

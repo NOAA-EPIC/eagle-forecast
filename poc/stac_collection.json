@@ -1,6 +1,10 @@
 {
     "type": "Collection",
     "stac_version": "1.0.0",
+    "stac_extensions": [
+        "https://stac-extensions.github.io/item-assets/v1.0.0/schema.json",
+        "https://stac-extensions.github.io/forecast/v0.2.0/schema.json"
+    ],
     "id": "nested-eagle",
     "title": "NOAA Nested-EAGLE Weather Forecasts",
     "description": "AI weather forecasts from the Nested-EAGLE model. Produces 360-hour forecasts every 6 hours by nesting a high-resolution HRRR grid (6km, CONUS) inside a global GFS grid (0.25°). Each forecast cycle produces separate global and CONUS regional files.",
