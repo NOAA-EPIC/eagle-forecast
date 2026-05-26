@@ -1,11 +1,12 @@
 import argparse
 import os
 import yaml
-from eagle.tools.prewxvx import main as prewxvx
 
 import utils
 import stac_item
 import pc_ingest
+
+import prewxvx
 
 from config import (
     VERSION,
@@ -94,9 +95,9 @@ def run(
     )
 
     # run postprocessing
-    prewxvx(lam_config)
+    prewxvx.main(lam_config)
 
-    prewxvx(global_config)
+    prewxvx.main(global_config)
 
     # create and upload stac items to blob store
     stac_item.write_stac_items(

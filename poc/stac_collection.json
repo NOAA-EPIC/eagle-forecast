@@ -2,8 +2,8 @@
     "type": "Collection",
     "stac_version": "1.0.0",
     "id": "nested-eagle",
-    "title": "NOAA Nested-EAGLE Weather Forecasts",
-    "description": "AI weather forecasts from the Nested-EAGLE model. Produces 360-hour forecasts every 6 hours by nesting a high-resolution HRRR grid (6km, CONUS) inside a global GFS grid (0.25°). Each forecast cycle produces separate global and CONUS regional files.",
+    "title": "NOAA Nested-EAGLE",
+    "description": "AI weather forecasts from the Nested-EAGLE model. Produces 240-hour forecasts every 6 hours by nesting a high-resolution (6km) CONUS domain within a global 0.25-degree grid. Each forecast cycle produces separate global and CONUS regional files.",
     "license": "proprietary",
     "keywords": [
         "weather",
@@ -37,16 +37,16 @@
             "bbox": [
                 [
                     -180.0,
-                    -90.0,
+                    -89.75,
                     180.0,
-                    90.0
+                    89.75
                 ]
             ]
         },
         "temporal": {
             "interval": [
                 [
-                    "2026-04-01T00:00:00Z",
+                    "2025-01-01T00:00:00Z",
                     null
                 ]
             ]
@@ -54,7 +54,7 @@
     },
     "summaries": {
         "nested-eagle:output_type": [
-            "CONUS & Global Domains"
+            "Global and CONUS Domains"
         ],
         "nested-eagle:variables": [
             "10m_meridional_wind",
@@ -94,16 +94,16 @@
             6
         ],
         "forecast:horizon": [
-            "PT360H"
+            "PT240H"
         ],
         "forecast:step_hours": [
-            6
+            "PT6H"
         ]
     },
     "item_assets": {
         "global": {
             "type": "application/netcdf",
-            "title": "Global Forecast (GFS grid, 0.25°)",
+            "title": "Global Forecast (0.25°)",
             "roles": [
                 "data"
             ],
@@ -111,7 +111,7 @@
         },
         "conus": {
             "type": "application/netcdf",
-            "title": "CONUS Forecast (HRRR grid, 6km)",
+            "title": "CONUS Forecast (6km)",
             "roles": [
                 "data"
             ],

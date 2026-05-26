@@ -17,7 +17,7 @@ def get_ml_client() -> MLClient:
     )
 
 # general
-LEAD_TIME = 360
+LEAD_TIME = 240
 FREQ = "6h"
 VERSION = "1.0"
 
@@ -50,9 +50,11 @@ OUTPUT_STORAGE_URL = f"https://{STORAGE_ACCOUNT}.blob.core.windows.net/{CONTAINE
 GEOCATALOG_URL = "PLACEHOLDER"
 COLLECTION_ID = "PLACEHOLDER"
 
-BBOX_GLOBAL = [-180.0, -90.0, 180.0, 90.0]
-BBOX_CONUS = [-134.1, 21.1, -60.9, 52.6]
+# Bounding boxes [west, south, east, north]
+BBOX_GLOBAL = [-180.0, -89.75, 180.0, 89.75]
+BBOX_CONUS = [-131.52061, 22.74829, -63.603, 51.31966]
 
+# Variables output by the model (14 total)
 VARIABLES = [
     "10m_meridional_wind",
     "10m_zonal_wind",
@@ -74,6 +76,8 @@ VARIABLES = [
 PRESSURE_LEVELS = [100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000]
 
 GEOCATALOG_AUDIENCE = "https://geocatalog.spatio.azure.com"
-API_VERSION = "PLACEHOLDER"
-POLL_INTERVAL_SECONDS = 5
-MAX_POLL_ATTEMPTS = 60
+API_VERSION = (
+    "2026-04-15"  # get this from your geocatalog, not your APIM
+)
+POLL_INTERVAL_SECONDS = 15
+MAX_POLL_ATTEMPTS = 80  # 5 minutes max

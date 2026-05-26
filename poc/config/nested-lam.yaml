@@ -1,6 +1,6 @@
 forecast_path: "placeholder"
 output_path: "placeholder"
-lead_time: 360
+lead_time: 240
 
 model_type: nested-lam
 lam_index: 407040
@@ -36,20 +36,18 @@ attributes:
       standard_name: latitude
       long_name: Latitude
       units: degrees_north
-      axis: Y
     longitude:
       standard_name: longitude
       long_name: Longitude
       units: degrees_east
-      axis: X
-    x:
-      standard_name: projection_x_coordinate
-      long_name: x-coordinate in Lambert Conformal Projection
-      axis: X
     y:
-      standard_name: projection_y_coordinate
-      long_name: y-coordinate in Lambert Conformal Projection
-      axis: Y
+      standard_name: "projection_y_coordinate"
+      units": "m"
+      axis: "Y"
+    x:
+      standard_name: "projection_x_coordinate"
+      units": "m"
+      axis: "X"
 
     # 3D pressure level variables
     geopotential_height:

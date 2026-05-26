@@ -18,7 +18,7 @@ Usage (standalone):
 import os
 import time
 from datetime import datetime
-
+import json
 import requests
 from azure.identity import DefaultAzureCredential
 
@@ -88,18 +88,33 @@ def _post_items(geocatalog_url, collection_id, items, headers):
 def _poll_ingestion(location_url, headers):
     """Poll the ingestion workflow until it completes or times out."""
     print(f"  Polling ingestion status...")
+
     for attempt in range(MAX_POLL_ATTEMPTS):
         response = requests.get(location_url, headers=headers, timeout=30)
-        status = response.json().get("status", "Unknown")
+
+        print(f"\n    Poll attempt {attempt + 1}")
+        print(f"    HTTP {response.status_code}")
+        print(f"    Headers: {dict(response.headers)}")
+
+        try:
+            payload = response.json()
+            print("    Body:")
+            print(json.dumps(payload, indent=2))
+        except Exception:
+            print("    Non-JSON body:")
+            print(response.text)
+            payload = {}
+
+        status = payload.get("status", "Unknown")
         print(f"    [{datetime.utcnow().isoformat()}] {status}")
 
         if status not in ("Pending", "Running"):
-            return status
+            return status, payload
 
         time.sleep(POLL_INTERVAL_SECONDS)
 
     print("  WARNING: Polling timed out. Ingestion may still be in progress.")
-    return "Timeout"
+    return "Timeout", {}
 
 
 def ingest_stac_items(
@@ -114,7 +129,7 @@ def ingest_stac_items(
     Generate and ingest STAC Items for a forecast cycle into GeoCatalog.
 
     Steps:
-      1. Create raw + post-processed STAC Items (same as stac_item.py)
+      1. Create post-processed STAC Items (same as stac_item.py)
       2. If a SAS token is provided, append it to asset HREFs so GeoCatalog
          can copy the data from blob storage
       3. POST items to the GeoCatalog ingestion API

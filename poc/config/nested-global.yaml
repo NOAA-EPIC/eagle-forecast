@@ -1,6 +1,6 @@
 forecast_path: "placeholder"
 output_path: "placeholder"
-lead_time: 360
+lead_time: 240
 
 model_type: nested-global
 lam_index: 407040
@@ -17,11 +17,11 @@ anemoi_reference_dataset_kwargs:
   min_distance_km: 6
 
 forecast_regrid_kwargs:
-  target_grid_path: global_quarter_degree_with_mask.nc
+  target_grid_path: config/global_quarter_degree_with_mask.nc
   regridder_kwargs:
     method: conservative_normed
     reuse_weights: true
-    filename: conservative_lam_to_global.nc
+    filename: config/conservative_lam_to_global.nc
 
 start_date: 2023-02-01T06
 end_date: 2023-02-01T06
@@ -51,12 +51,12 @@ attributes:
       standard_name: latitude
       long_name: Latitude
       units: degrees_north
-      axis: Y
+      axis: "Y"
     longitude:
       standard_name: longitude
       long_name: Longitude
       units: degrees_east
-      axis: X
+      axis: "X"
 
     # 3D pressure level variables
     geopotential_height:

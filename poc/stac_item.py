@@ -40,6 +40,73 @@ from config import (
 
 COLLECTION_RELATIVE_HREF = "../../../../../stac_collection.json"
 
+from pyproj import CRS
+
+HRRR_LCC_WKT = CRS.from_cf(
+    {
+        "grid_mapping_name": "lambert_conformal_conic",
+        "standard_parallel": [38.5, 38.5],
+        "longitude_of_central_meridian": -97.5,
+        "latitude_of_projection_origin": 38.5,
+        "earth_radius": 6371229.0,
+    }
+).to_wkt(version="WKT2_2019")
+
+DATACUBE_EXT = "https://stac-extensions.github.io/datacube/v2.2.0/schema.json"
+
+
+def _cube_dimensions(bbox):
+    """``cube:dimensions`` payload keyed by the coord names cf_patch writes."""
+    w, s, e, n = bbox
+    return {
+        "longitude": {
+            "type": "spatial",
+            "axis": "x",
+            "extent": [w, e],
+            "reference_system": 4326,
+        },
+        "latitude": {
+            "type": "spatial",
+            "axis": "y",
+            "extent": [s, n],
+            "reference_system": 4326,
+        },
+        "time": {"type": "temporal", "extent": [None, None]},
+    }
+
+
+def _cube_dimensions_hrrr():
+    return {
+        "x": {
+            "type": "spatial",
+            "axis": "x",
+            "extent": [0, 848 - 1],
+            "reference_system": HRRR_LCC_WKT,
+        },
+        "y": {
+            "type": "spatial",
+            "axis": "y",
+            "extent": [0, 480 - 1],
+            "reference_system": HRRR_LCC_WKT,
+        },
+        "time": {"type": "temporal", "extent": [None, None]},
+    }
+
+
+def _cube_variables_hrrr():
+    return {
+        "longitude": {
+            "type": "auxiliary",
+            "dimensions": ["y", "x"],
+            "unit": "degrees_east",
+        },
+        "latitude": {
+            "type": "auxiliary",
+            "dimensions": ["y", "x"],
+            "unit": "degrees_north",
+        },
+    }
+
 
 def _base_properties(init_utc, forecast_end, version):
     """Shared STAC properties for both raw and post-processed items."""
@@ -47,7 +114,7 @@ def _base_properties(init_utc, forecast_end, version):
         "datetime": None,
         "start_datetime": init_utc.isoformat(),
         "end_datetime": forecast_end.isoformat(),
-        "forecast:reference_time": init_utc.isoformat(),
+        "forecast:reference_datetime": init_utc.isoformat(),
         "forecast:horizon": f"PT{LEAD_TIME}H",
         "forecast:step_hours": 6,
         "nested-eagle:version": version,
@@ -89,8 +156,8 @@ def create_postprocessed_stac_item(
     STAC Item for the post-processed forecast (global + CONUS split).
 
     Assets:
-      data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/global.nc  — GFS 0.25° global
-      data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/conus.nc   — HRRR 6km CONUS
+      data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/*.nc  — GFS 0.25° global
+      data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/*.nc   — HRRR 6km CONUS
     """
     init_utc = ic_timestamp.astimezone(timezone.utc)
     folder = init_utc.strftime("%Y/%m/%d/%H")
@@ -105,12 +172,16 @@ def create_postprocessed_stac_item(
     return {
         "type": "Feature",
         "stac_version": "1.0.0",
+        "stac_extensions": [
+            "https://stac-extensions.github.io/projection/v1.1.0/schema.json",
+            "https://stac-extensions.github.io/datacube/v2.2.0/schema.json",
+        ],
         "id": f"nested-eagle-{init_utc.strftime('%Y%m%d-%H')}z",
         "geometry": _make_geometry(BBOX_GLOBAL),
         "bbox": BBOX_GLOBAL,
         "properties": {
             **_base_properties(init_utc, forecast_end, version),
-            "nested-eagle:output_type": "CONUS & Global Domains",
+            "nested-eagle:output_type": "Global and CONUS Domains",
         },
         "collection": COLLECTION_ID,
         "links": _stac_links(),
@@ -118,23 +189,26 @@ def create_postprocessed_stac_item(
             "global": {
                 "href": global_href,
                 "type": "application/netcdf",
-                "title": "Global Forecast (GFS grid, 0.25°)",
+                "title": "Global Forecast (0.25°)",
                 "description": (
                     f"Global forecast on 0.25° grid, "
                     f"{LEAD_TIME}h from {init_utc.strftime('%Y-%m-%d %H:%M')} UTC"
                 ),
-                "roles": ["data"],
+                "cube:dimensions": _cube_dimensions(BBOX_GLOBAL),
             },
             "conus": {
                 "href": conus_href,
                 "type": "application/netcdf",
-                "title": "CONUS Forecast (HRRR grid, 6km)",
+                "title": "CONUS Forecast (6km)",
                 "description": (
                     f"CONUS regional forecast on 6km grid, "
                     f"{LEAD_TIME}h from {init_utc.strftime('%Y-%m-%d %H:%M')} UTC"
                 ),
-                "roles": ["data"],
-                "proj:bbox": BBOX_CONUS,
+                "proj:shape": [480, 848],
+                "proj:epsg": None,
+                "proj:wkt2": HRRR_LCC_WKT,
+                "cube:dimensions": _cube_dimensions_hrrr(),
+                "cube:variables": _cube_variables_hrrr(),
             },
         },
     }
