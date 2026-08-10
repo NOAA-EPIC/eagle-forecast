@@ -1,0 +1,20 @@
+name: nested-eagle
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - ufs2arco=0.19.0
+  - pip
+  - pip:
+      - anemoi-datasets==0.5.28
+      - anemoi-graphs==0.8.4
+      - anemoi-models==0.12.0
+      - anemoi-transform==0.1.19
+      - anemoi-utils==0.4.40
+      - anemoi-inference==0.9.0
+      - torch==2.6.0
+      - torchvision==0.21.0
+      - "dask>=2024.1,<2027"
+      - eagle-tools==0.6.3
+      - azure-ai-ml

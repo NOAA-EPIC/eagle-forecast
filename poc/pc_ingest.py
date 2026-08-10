@@ -1,34 +1,39 @@
 """
-Ingest STAC Items into a Microsoft Planetary Computer Pro GeoCatalog.
+Ingest Nested-EAGLE STAC Items into Planetary Computer GeoCatalog.
 
-After the pipeline uploads forecast data + STAC Items to blob storage,
-this module POSTs the STAC Items to the GeoCatalog ingestion API so they
-become discoverable via the STAC search endpoint.
+This module creates one STAC Item for each forecast domain (global + CONUS),
+submits each item to its target collection ingestion endpoint, and polls the
+asynchronous ingestion status until completion.
 
-GeoCatalog asynchronously copies the referenced data assets into its own
-managed storage and indexes the STAC metadata.
+GeoCatalog ingestion copies referenced assets and indexes STAC metadata.
 
 Reference:
   https://learn.microsoft.com/en-us/azure/planetary-computer/add-stac-item-to-collection
 
 Usage (standalone):
-  ingest_stac_items(ic_timestamp, version, geocatalog_url, collection_id)
+  ingest_stac_items(
+      ic_timestamp,
+      version,
+      geocatalog_url,
+      conus_collection_id,
+      global_collection_id,
+      output_storage_url,
+  )
 """
 
+import json
 import os
 import time
 from datetime import datetime
-import json
+
 import requests
-from azure.identity import DefaultAzureCredential
-
 import stac_item
-
+from azure.identity import DefaultAzureCredential
 from config import (
-    GEOCATALOG_AUDIENCE,
     API_VERSION,
-    POLL_INTERVAL_SECONDS,
+    GEOCATALOG_AUDIENCE,
     MAX_POLL_ATTEMPTS,
+    POLL_INTERVAL_SECONDS,
 )
 
 
@@ -63,7 +68,7 @@ def _get_credential():
 
 def _post_items(geocatalog_url, collection_id, items, headers):
     """
-    POST an ItemCollection to the GeoCatalog ingestion endpoint.
+    POST a GeoJSON FeatureCollection to a GeoCatalog ingestion endpoint.
 
     Returns the response object. A 202 status indicates items were accepted.
     """
@@ -117,29 +122,65 @@ def _poll_ingestion(location_url, headers):
     return "Timeout", {}
 
 
+def _ingest_single_item(geocatalog_url, collection_id, item, credential):
+    """Ingest one STAC item and return True when ingestion succeeds."""
+    item_id = item.get("id", "<unknown-id>")
+    headers = _get_auth_headers(credential)
+    print(f"\nIngesting item: {item_id}")
+
+    response = _post_items(geocatalog_url, collection_id, [item], headers)
+    if response.status_code != 202:
+        print(f"  Ingestion failed for {item_id}. Status: {response.status_code}")
+        try:
+            print(json.dumps(response.json(), indent=2))
+        except Exception:
+            print(response.text)
+        return False
+
+    location = response.headers.get("location")
+    if not location:
+        print(f"  No location header returned for {item_id}. Cannot poll status.")
+        return False
+
+    print(f"  Ingestion status URL: {location}")
+    headers = _get_auth_headers(credential)
+    status, payload = _poll_ingestion(location, headers)
+    if status == "Succeeded":
+        print(f"  Ingestion completed successfully for {item_id}.")
+        return True
+
+    print(f"  Ingestion ended with status {status} for {item_id}.")
+    if payload.get("error"):
+        print("  Error details:")
+        print(json.dumps(payload.get("error"), indent=2))
+    return False
+
+
 def ingest_stac_items(
     ic_timestamp,
     version,
     geocatalog_url,
-    collection_id,
+    conus_collection_id,
+    global_collection_id,
     output_storage_url,
     sas_token=None,
 ):
     """
-    Generate and ingest STAC Items for a forecast cycle into GeoCatalog.
+    Generate and ingest STAC Items for one forecast cycle.
 
     Steps:
-      1. Create post-processed STAC Items (same as stac_item.py)
+      1. Create post-processed STAC Items (global + CONUS)
       2. If a SAS token is provided, append it to asset HREFs so GeoCatalog
          can copy the data from blob storage
-      3. POST items to the GeoCatalog ingestion API
-      4. Poll until ingestion completes
+      3. Ingest each item into its configured collection
+      4. Poll each ingestion operation until completion
 
     Args:
         ic_timestamp: Forecast initialization timestamp.
         version: Model version string.
         geocatalog_url: GeoCatalog endpoint (no trailing slash, no /api).
-        collection_id: STAC collection ID in GeoCatalog.
+        conus_collection_id: STAC collection ID for CONUS items.
+        global_collection_id: STAC collection ID for global items.
         output_storage_url: Blob storage base URL where data was uploaded.
         sas_token: Optional SAS token for blob access. If the GeoCatalog's
             managed identity already has Storage Blob Data Reader on the
@@ -147,15 +188,15 @@ def ingest_stac_items(
     """
     geocatalog_url = geocatalog_url.rstrip("/")
     print(f"Ingesting STAC items into GeoCatalog: {geocatalog_url}")
-    print(f"  Collection: {collection_id}")
     print(f"  Forecast cycle: {ic_timestamp}")
 
     # Build STAC items
-    pp_item = stac_item.create_postprocessed_stac_item(
+    items = stac_item.create_postprocessed_stac_items(
         ic_timestamp, version, output_storage_url
     )
 
-    items = [pp_item]
+    global_item = items[0]
+    conus_item = items[1]
 
     # Append SAS token to asset HREFs if provided
     if sas_token:
@@ -169,26 +210,33 @@ def ingest_stac_items(
     credential = _get_credential()
     headers = _get_auth_headers(credential)
 
-    # POST items
-    response = _post_items(geocatalog_url, collection_id, items, headers)
+    item_results = {}
 
-    if response.status_code != 202:
-        print(f"  Ingestion failed. Status: {response.status_code}")
-        return False
+    conus_item_id = conus_item.get("id", "<unknown-id>")
+    item_results[conus_item_id] = _ingest_single_item(
+        geocatalog_url=geocatalog_url,
+        collection_id=conus_collection_id,
+        item=conus_item,
+        credential=credential,
+    )
 
-    # Poll for completion
-    location = response.headers.get("location")
-    if location:
-        print(f"  Ingestion status URL: {location}")
-        # Refresh token for polling (may need fresh headers)
-        headers = _get_auth_headers(credential)
-        status = _poll_ingestion(location, headers)
-        if status == "Succeeded":
-            print("  Ingestion completed successfully.")
-            return True
-        else:
-            print(f"  Ingestion ended with status: {status}")
-            return False
-    else:
-        print("  No location header returned. Cannot poll status.")
-        return True
+    global_item_id = global_item.get("id", "<unknown-id>")
+    item_results[global_item_id] = _ingest_single_item(
+        geocatalog_url=geocatalog_url,
+        collection_id=global_collection_id,
+        item=global_item,
+        credential=credential,
+    )
+
+    succeeded = [item_id for item_id, ok in item_results.items() if ok]
+    failed = [item_id for item_id, ok in item_results.items() if not ok]
+
+    print("\nIngestion summary:")
+    print(f"  Succeeded: {len(succeeded)}")
+    for item_id in succeeded:
+        print(f"    - {item_id}")
+    print(f"  Failed: {len(failed)}")
+    for item_id in failed:
+        print(f"    - {item_id}")
+
+    return len(failed) == 0

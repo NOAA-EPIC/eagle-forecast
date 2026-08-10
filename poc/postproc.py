@@ -1,20 +1,21 @@
+"""Postprocess forecast outputs, generate STAC items, and ingest to GeoCatalog."""
+
 import argparse
 import os
-import yaml
 
-import utils
-import stac_item
 import pc_ingest
-
 import prewxvx
-
+import stac_item
+import utils
+import yaml
 from config import (
-    VERSION,
-    TRIM_EDGE,
+    CONUS_COLLECTION_ID,
+    GEOCATALOG_URL,
+    GLOBAL_COLLECTION_ID,
     MIN_DISTANCE_KM,
     OUTPUT_STORAGE_URL,
-    GEOCATALOG_URL,
-    COLLECTION_ID,
+    TRIM_EDGE,
+    VERSION,
 )
 
 
@@ -27,6 +28,7 @@ def prep_config(
     trim_edge=TRIM_EDGE,
     min_distance_km=MIN_DISTANCE_KM,
 ):
+    """Create a postprocessing config for either nested-lam or nested-global."""
     config = utils.load_config(f"config/{model_name}.yaml")
 
     folder_structure = ic_timestamp.strftime("%Y/%m/%d/%H")
@@ -66,17 +68,18 @@ def run(
     raw_inference,
     stac_path,
     version,
+    ic_timestamp,
 ):
     """
-    Final blob layout:
-    version/data/raw/{YYYY}/{MM}/{DD}/{HH}/forecast.nc
-    version/data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/global.nc
-    version/data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/conus.nc
-    version/stac/collection.json
-    version/stac/items/{YYYY}/{MM}/{DD}/{HH}/postprocessed.json
-    """
-    ic_timestamp = utils.get_nrt_timestamp()
+    Process one forecast cycle into final domain-specific outputs and STAC.
 
+    Output layout under the versioned storage prefix:
+      version/data/raw/{YYYY}/{MM}/{DD}/{HH}/...
+      version/data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/nested-global.{YYYY-MM-DDTHH}.{LEAD_TIME}h.nc
+      version/data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/nested-lam.{YYYY-MM-DDTHH}.{LEAD_TIME}h.nc
+      version/stac/items/{YYYY}/{MM}/{DD}/{HH}/nested-eagle-global-{YYYYMMDD-HH}z.json
+      version/stac/items/{YYYY}/{MM}/{DD}/{HH}/nested-eagle-conus-{YYYYMMDD-HH}z.json
+    """
     # prep configs
     lam_config = prep_config(
         model_name="nested-lam",
@@ -99,7 +102,7 @@ def run(
 
     prewxvx.main(global_config)
 
-    # create and upload stac items to blob store
+    # Write STAC items into the mounted output path (synced by AML datastore I/O).
     stac_item.write_stac_items(
         ic_timestamp=ic_timestamp,
         version=version,
@@ -107,12 +110,13 @@ def run(
         output_storage_url=OUTPUT_STORAGE_URL,
     )
 
-    # ingest to pc
+    # Ingest each domain item into its target GeoCatalog collection.
     pc_ingest.ingest_stac_items(
         ic_timestamp=ic_timestamp,
         version=version,
         geocatalog_url=GEOCATALOG_URL,
-        collection_id=COLLECTION_ID,
+        global_collection_id=GLOBAL_COLLECTION_ID,
+        conus_collection_id=CONUS_COLLECTION_ID,
         output_storage_url=OUTPUT_STORAGE_URL,
     )
 
@@ -125,8 +129,10 @@ if __name__ == "__main__":
     parser.add_argument("--stac_items", type=str, required=True)
     parser.add_argument("--initial_conditions", type=str, required=True)
     parser.add_argument("--raw_inference", type=str, required=True)
-
+    parser.add_argument("--run_context", required=False)
     args = parser.parse_args()
+
+    ic_timestamp = utils.resolve_ic_timestamp(args.run_context)
 
     output_path = args.output_dir
     initial_conditions = args.initial_conditions
@@ -138,5 +144,6 @@ if __name__ == "__main__":
         initial_conditions=initial_conditions,
         raw_inference=raw_inference,
         stac_path=stac_path,
+        ic_timestamp=ic_timestamp,
         version=VERSION,
     )

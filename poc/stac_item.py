@@ -1,26 +1,22 @@
 """
-Generate STAC Item JSONs for Nested-EAGLE forecast outputs.
+Generate STAC Item JSONs for Nested-EAGLE postprocessed outputs.
 
-Each pipeline run produces two outputs:
-  1. Raw forecast — full model output (nested global + CONUS grid)
-  2. Post-processed — split into separate global (GFS) and CONUS (HRRR 6km) files
+This module creates two STAC Items per forecast cycle:
+  1. Global domain item (nested-eagle-global-...)
+  2. CONUS domain item (nested-eagle-conus-...)
 
-STAC Items are written to a dedicated stac/ folder in blob storage,
-separate from the data files. MPC Pro's GeoCatalog reads STAC Items
-from this folder for ingestion and public distribution.
-
-We will only create STAC and load postprocessed to PC.
+Items reference postprocessed NetCDF assets and are written into the AML
+`stac_items` output mount, which syncs to the configured datastore path.
 
 Blob layout:
-  version/data/raw/{YYYY}/{MM}/{DD}/{HH}/forecast.nc
-  version/data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/global.nc
-  version/data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/conus.nc
-  version/stac/collection.json
-  version/stac/items/{YYYY}/{MM}/{DD}/{HH}/postprocessed.json
+  version/data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/nested-global.{YYYY-MM-DDTHH}.{LEAD_TIME}h.nc
+  version/data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/nested-lam.{YYYY-MM-DDTHH}.{LEAD_TIME}h.nc
+  version/stac/items/{YYYY}/{MM}/{DD}/{HH}/nested-eagle-global-{YYYYMMDD-HH}z.json
+  version/stac/items/{YYYY}/{MM}/{DD}/{HH}/nested-eagle-conus-{YYYYMMDD-HH}z.json
 
 How to use:
   from stac_item import write_stac_items
-  paths = write_stac_items(ic_timestamp, version, output_storage_url)
+  paths = write_stac_items(ic_timestamp, version, stac_path, output_storage_url)
 """
 
 import json
@@ -28,18 +24,15 @@ import os
 from datetime import timezone
 
 import pandas as pd
-
 from config import (
-    COLLECTION_ID,
     BBOX_CONUS,
     BBOX_GLOBAL,
-    VARIABLES,
-    PRESSURE_LEVELS,
+    CONUS_COLLECTION_ID,
+    GLOBAL_COLLECTION_ID,
     LEAD_TIME,
+    PRESSURE_LEVELS,
+    VARIABLES,
 )
-
-COLLECTION_RELATIVE_HREF = "../../../../../stac_collection.json"
-
 from pyproj import CRS
 
 HRRR_LCC_WKT = CRS.from_cf(
@@ -76,6 +69,7 @@ def _cube_dimensions(bbox):
 
 
 def _cube_dimensions_hrrr():
+    """Return datacube dimension metadata for the projected HRRR CONUS grid."""
     return {
         "x": {
             "type": "spatial",
@@ -94,6 +88,7 @@ def _cube_dimensions_hrrr():
 
 
 def _cube_variables_hrrr():
+    """Describe auxiliary 2D lon/lat variables attached to the HRRR grid."""
     return {
         "longitude": {
             "type": "auxiliary",
@@ -109,19 +104,17 @@ def _cube_variables_hrrr():
 
 
 def _base_properties(init_utc, forecast_end, version):
-    """Shared STAC properties for both raw and post-processed items."""
+    """Shared STAC properties for global and CONUS postprocessed items."""
     return {
         "datetime": None,
         "start_datetime": init_utc.isoformat(),
         "end_datetime": forecast_end.isoformat(),
         "forecast:reference_datetime": init_utc.isoformat(),
         "forecast:horizon": f"PT{LEAD_TIME}H",
-        "forecast:step_hours": 6,
+        "forecast:duration": "PT6H",
         "nested-eagle:version": version,
         "nested-eagle:variables": VARIABLES,
         "nested-eagle:pressure_levels": PRESSURE_LEVELS,
-        "nested-eagle:global_resolution_deg": 0.25,
-        "nested-eagle:conus_resolution_km": 6,
     }
 
 
@@ -134,30 +127,59 @@ def _make_geometry(bbox):
     }
 
 
-def _stac_links():
-    """Links back to the collection (relative paths within stac/ folder)."""
+def _stac_links_conus():
+    """Collection-relative links for the CONUS item."""
     return [
         {
             "rel": "collection",
-            "href": COLLECTION_RELATIVE_HREF,
+            "href": "../../../../../stac_collection_conus.json",
             "type": "application/json",
         },
-        {"rel": "parent", "href": COLLECTION_RELATIVE_HREF, "type": "application/json"},
-        {"rel": "root", "href": COLLECTION_RELATIVE_HREF, "type": "application/json"},
+        {
+            "rel": "parent",
+            "href": "../../../../../stac_collection_conus.json",
+            "type": "application/json",
+        },
+        {
+            "rel": "root",
+            "href": "../../../../../stac_collection_conus.json",
+            "type": "application/json",
+        },
     ]
 
 
-def create_postprocessed_stac_item(
+def _stac_links_global():
+    """Collection-relative links for the global item."""
+    return [
+        {
+            "rel": "collection",
+            "href": "../../../../../stac_collection_global.json",
+            "type": "application/json",
+        },
+        {
+            "rel": "parent",
+            "href": "../../../../../stac_collection_global.json",
+            "type": "application/json",
+        },
+        {
+            "rel": "root",
+            "href": "../../../../../stac_collection_global.json",
+            "type": "application/json",
+        },
+    ]
+
+
+def create_postprocessed_stac_items(
     ic_timestamp: pd.Timestamp,
     version: str,
     output_storage_url,
-) -> dict:
+) -> list[dict]:
     """
-    STAC Item for the post-processed forecast (global + CONUS split).
+    STAC Items for the post-processed forecast.
 
-    Assets:
-      data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/*.nc  — GFS 0.25° global
-      data/postprocessed/{YYYY}/{MM}/{DD}/{HH}/*.nc   — HRRR 6km CONUS
+    Output:
+      - Global STAC Item with the global NetCDF asset
+      - CONUS STAC Item with the CONUS NetCDF asset
     """
     init_utc = ic_timestamp.astimezone(timezone.utc)
     folder = init_utc.strftime("%Y/%m/%d/%H")
@@ -169,36 +191,61 @@ def create_postprocessed_stac_item(
     global_href = f"{base_url}/{version}/data/postprocessed/{folder}/nested-global.{file_name}.{LEAD_TIME}h.nc"
     conus_href = f"{base_url}/{version}/data/postprocessed/{folder}/nested-lam.{file_name}.{LEAD_TIME}h.nc"
 
-    return {
+    global_item = {
         "type": "Feature",
         "stac_version": "1.0.0",
         "stac_extensions": [
             "https://stac-extensions.github.io/projection/v1.1.0/schema.json",
             "https://stac-extensions.github.io/datacube/v2.2.0/schema.json",
         ],
-        "id": f"nested-eagle-{init_utc.strftime('%Y%m%d-%H')}z",
+        "id": f"nested-eagle-global-{init_utc.strftime('%Y%m%d-%H')}z",
         "geometry": _make_geometry(BBOX_GLOBAL),
         "bbox": BBOX_GLOBAL,
         "properties": {
             **_base_properties(init_utc, forecast_end, version),
-            "nested-eagle:output_type": "Global and CONUS Domains",
+            "nested-eagle:output_type": "Nested-EAGLE Global Domain",
+            "nested-eagle:global_resolution_deg": 0.25,
         },
-        "collection": COLLECTION_ID,
-        "links": _stac_links(),
+        "collection": GLOBAL_COLLECTION_ID,
+        "links": _stac_links_global(),
         "assets": {
             "global": {
                 "href": global_href,
                 "type": "application/netcdf",
+                "msft:ingestion": {"virtualize": "kerchunk"},
                 "title": "Global Forecast (0.25°)",
                 "description": (
                     f"Global forecast on 0.25° grid, "
                     f"{LEAD_TIME}h from {init_utc.strftime('%Y-%m-%d %H:%M')} UTC"
                 ),
+                "proj:epsg": 4326,
                 "cube:dimensions": _cube_dimensions(BBOX_GLOBAL),
             },
+        },
+    }
+
+    conus_item = {
+        "type": "Feature",
+        "stac_version": "1.0.0",
+        "stac_extensions": [
+            "https://stac-extensions.github.io/projection/v1.1.0/schema.json",
+            "https://stac-extensions.github.io/datacube/v2.2.0/schema.json",
+        ],
+        "id": f"nested-eagle-conus-{init_utc.strftime('%Y%m%d-%H')}z",
+        "geometry": _make_geometry(BBOX_CONUS),
+        "bbox": BBOX_CONUS,
+        "properties": {
+            **_base_properties(init_utc, forecast_end, version),
+            "nested-eagle:output_type": "Nested-EAGLE CONUS Domain",
+            "nested-eagle:conus_resolution_km": 6,
+        },
+        "collection": CONUS_COLLECTION_ID,
+        "links": _stac_links_conus(),
+        "assets": {
             "conus": {
                 "href": conus_href,
                 "type": "application/netcdf",
+                "msft:ingestion": {"virtualize": "kerchunk"},
                 "title": "CONUS Forecast (6km)",
                 "description": (
                     f"CONUS regional forecast on 6km grid, "
@@ -213,6 +260,8 @@ def create_postprocessed_stac_item(
         },
     }
 
+    return [global_item, conus_item]
+
 
 def write_stac_items(
     ic_timestamp: pd.Timestamp,
@@ -221,30 +270,31 @@ def write_stac_items(
     output_storage_url,
 ) -> list[str]:
     """
-    Create STAC Items for both raw and post-processed outputs and write
-    them to a local stac/items/ folder (mirroring the blob layout).
+    Create postprocessed STAC Items and write them to `stac/items/...`.
 
-    Returns list of paths to the written JSON files.
+    Returns:
+        list[str]: Absolute paths to the written item JSON files.
     """
     folder_structure = ic_timestamp.strftime("%Y/%m/%d/%H")
-    stac_dir = f"{stac_path}/items/{folder_structure}"
+    stac_dir = os.path.join(stac_path, "items", folder_structure)
     os.makedirs(stac_dir, exist_ok=True)
 
     paths = []
 
-    # Post-processed forecast STAC Item
-    pp_item = create_postprocessed_stac_item(ic_timestamp, version, output_storage_url)
-    pp_path = os.path.join(stac_dir, "postprocessed.json")
-    with open(pp_path, "w") as f:
-        json.dump(pp_item, f, indent=2)
-    print(f"STAC Item written: {pp_path}")
-    paths.append(pp_path)
+    items = create_postprocessed_stac_items(
+        ic_timestamp,
+        version,
+        output_storage_url,
+    )
 
-    # collection
-    collection_path = os.path.join(stac_path, "stac_collection.json")
-    with open("stac_collection.json", "r") as f:
-        stac_collection = json.load(f)
-    with open(collection_path, "w") as f:
-        json.dump(stac_collection, f)
+    for item in items:
+        item_id = item["id"]
+        item_path = os.path.join(stac_dir, f"{item_id}.json")
+
+        with open(item_path, "w", encoding="utf-8") as f:
+            json.dump(item, f, indent=2)
+
+        print(f"STAC Item written: {item_path}")
+        paths.append(item_path)
 
     return paths

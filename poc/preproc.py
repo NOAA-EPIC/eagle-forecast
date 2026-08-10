@@ -1,12 +1,13 @@
-import pandas as pd
+"""Prepare GFS/HRRR initial-condition Zarr inputs for one forecast cycle."""
+
 import argparse
-import yaml
 import os
-from ufs2arco.driver import Driver
 
+import pandas as pd
 import utils
-
+import yaml
 from config import LEAD_TIME, MULTISTEP_INPUT
+from ufs2arco.driver import Driver
 
 
 def create_yaml(
@@ -16,6 +17,7 @@ def create_yaml(
     output_path,
     ic_timestamp,
 ):
+    """Render a cycle-specific ufs2arco config and return its file path."""
     config = utils.load_config(f"config/{model_name}.yaml")
 
     folder_structure = ic_timestamp.strftime("%Y/%m/%d/%H")
@@ -43,6 +45,7 @@ def prep_configs(
     multistep_input,
     output_path,
 ):
+    """Build GFS and HRRR ufs2arco config files for the selected cycle."""
     if multistep_input:
         init = ic_timestamp - pd.Timedelta("6h")
     else:
@@ -72,6 +75,7 @@ def prep_configs(
 def load_initial_conditions(
     configs,
 ):
+    """Execute ufs2arco data movers for GFS and HRRR config files."""
     print("Loading GFS")
     Driver(configs[0]).run()
 
@@ -79,13 +83,8 @@ def load_initial_conditions(
     Driver(configs[1]).run()
 
 
-def run(
-    lead_time,
-    multistep_input,
-    output_path,
-):
-    ic_timestamp = utils.get_nrt_timestamp()
-
+def run(lead_time, multistep_input, output_path, ic_timestamp):
+    """Run preprocessing for a fixed NRT cycle timestamp."""
     print(f"Loading initial conditions for {ic_timestamp}")
 
     configs = prep_configs(
@@ -103,10 +102,16 @@ def run(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_dir", type=str, required=True)
+    parser.add_argument("--run_context", required=False)
     args = parser.parse_args()
+
+    ic_timestamp = utils.resolve_ic_timestamp(args.run_context)
+
     output_path = args.output_dir
+
     run(
         lead_time=LEAD_TIME,
         multistep_input=MULTISTEP_INPUT,
         output_path=output_path,
+        ic_timestamp=ic_timestamp,
     )

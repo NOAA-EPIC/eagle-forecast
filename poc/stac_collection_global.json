@@ -1,8 +1,8 @@
 {
     "type": "Collection",
     "stac_version": "1.0.0",
-    "id": "nested-eagle",
-    "title": "NOAA Nested-EAGLE",
+    "id": "nested-eagle-global",
+    "title": "NOAA Nested-EAGLE (Global)",
     "description": "AI weather forecasts from the Nested-EAGLE model. Produces 240-hour forecasts every 6 hours by nesting a high-resolution (6km) CONUS domain within a global 0.25-degree grid. Each forecast cycle produces separate global and CONUS regional files.",
     "license": "proprietary",
     "keywords": [
@@ -46,7 +46,7 @@
         "temporal": {
             "interval": [
                 [
-                    "2025-01-01T00:00:00Z",
+                    "2024-10-01T00:00:00Z",
                     null
                 ]
             ]
@@ -54,7 +54,7 @@
     },
     "summaries": {
         "nested-eagle:output_type": [
-            "Global and CONUS Domains"
+            "Nested-EAGLE Global Domain"
         ],
         "nested-eagle:variables": [
             "10m_meridional_wind",
@@ -90,9 +90,6 @@
         "nested-eagle:global_resolution_deg": [
             0.25
         ],
-        "nested-eagle:conus_resolution_km": [
-            6
-        ],
         "forecast:horizon": [
             "PT240H"
         ],
@@ -108,20 +105,12 @@
                 "data"
             ],
             "description": "Global forecast on 0.25° grid"
-        },
-        "conus": {
-            "type": "application/netcdf",
-            "title": "CONUS Forecast (6km)",
-            "roles": [
-                "data"
-            ],
-            "description": "CONUS regional forecast on 6km grid"
         }
     },
     "links": [
         {
             "rel": "self",
-            "href": "./stac_collection.json",
+            "href": "./stac_collection_global.json",
             "type": "application/json"
         }
     ]

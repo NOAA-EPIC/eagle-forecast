@@ -1,0 +1,5 @@
+$schema: https://azuremlschemas.azureedge.net/latest/environment.schema.json
+name: nested-eagle-inference
+description: GPU environment for nested-eagle inference step.
+build:
+  path: .

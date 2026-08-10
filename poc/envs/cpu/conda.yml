@@ -1,0 +1,11 @@
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - ufs2arco=0.19.0=nompi*
+  - rioxarray
+  - pip
+  - pip:
+      - eagle-tools==0.8.0
+      - azure-ai-ml
+name: eagle

@@ -1,6 +1,8 @@
-import os
-import xarray as xr
+"""Generate the static HRRR 6 km target grid NetCDF used by preprocessing."""
 
+import os
+
+import xarray as xr
 from ufs2arco import sources
 from ufs2arco.transforms.horizontal_regrid import get_bounds
 
@@ -30,4 +32,5 @@ if __name__ == "__main__":
     bounds = bounds.drop_vars(["lat", "lon", "orog"])
 
     cds = xr.merge([centers, bounds])
-    cds.to_netcdf("hrrr_06km.nc")
+    output_path = os.path.join(os.path.dirname(__file__), "hrrr_06km.nc")
+    cds.to_netcdf(output_path)

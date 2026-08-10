@@ -1,22 +1,24 @@
-import os
-import logging
+"""Convert and annotate forecast outputs into final NetCDF delivery files."""
 
-import numpy as np
-import pandas as pd
-import xarray as xr
+import gc
+import logging
+import os
 
 import anemoi.datasets
-
-from ufs2arco.transforms.horizontal_regrid import horizontal_regrid
-
 import eagle.tools
+import numpy as np
+import pandas as pd
+import tiler
+import xarray as xr
 from eagle.tools.data import open_anemoi_inference_dataset, open_forecast_zarr_dataset
 from eagle.tools.nested import prepare_regrid_target_mask
+from ufs2arco.transforms.horizontal_regrid import horizontal_regrid
 
 logger = logging.getLogger("eagle.tools")
 
 
 def main(config):
+    """Run the prewxvx conversion workflow from a config path or dict."""
     if isinstance(config, str):
         from eagle.tools.utils import setup
 
@@ -134,8 +136,12 @@ def main(config):
                 note += f"{varname} is diagnosed by the model, so the initial condition is all NaNs"
                 xds[varname].attrs["diagnostic_note"] = note
 
-        # Sort the data variables
+        # Sort the data variables and levels
         xds = xds[sorted(xds.data_vars)]
+        xds = xds.sortby("level")
+
+        if model_type == "nested-global":
+            xds = xds.sortby("longitude")
 
         # metadata for PC
         if model_type == "nested-lam":
@@ -154,13 +160,46 @@ def main(config):
                 xds[v].attrs["grid_mapping"] = "crs"
                 xds[v].attrs["coordinates"] = "latitude longitude"
 
+            xds = tiler.reconstruct_projected_coordinates(ds=xds)
+
         xds.attrs["Conventions"] = "CF-1.8"
 
         # Chunking
-        chunks = config.get("chunks", None)
-        if chunks is not None:
-            xds = xds.chunk(chunks)
-        xds.to_netcdf(path_out)
+        # One time step + one pressure level per chunk; full spatial extent.
+        # This matches the tiler's sel=time=... / sel=level=... access pattern.
+        xds = xds.chunk({"time": 1, "level": 1})
+        encoding = {}
+        for name, da in xds.data_vars.items():
+            if not da.dims:  # skip scalars (e.g. crs in conus.nc)
+                continue
+            encoding[name] = {
+                "chunksizes": tuple(da.chunksizes[d][0] for d in da.dims),
+                "zlib": True,
+                "complevel": 1,
+                "dtype": da.dtype,
+            }
+            # Preserve the CRS reference added by rioxarray.
+            if "grid_mapping" in da.encoding:
+                encoding[name]["grid_mapping"] = da.encoding["grid_mapping"]
+        for name, enc in encoding.items():
+            da = xds[name]
+            print(f"  {name:<35} {str(da.shape):<30} {enc['chunksizes']}")
+
+        xds.to_netcdf(path_out, engine="h5netcdf", encoding=encoding)
+
         logger.info(f"Wrote to {path_out}")
+
+        try:
+            xds.close()
+        except Exception:
+            pass
+
+        del xds
+        try:
+            del t0
+        except NameError:
+            pass
+
+        gc.collect()
 
     logger.info(f"Done with prewxvx workflow")

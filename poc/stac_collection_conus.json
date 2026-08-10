@@ -1,0 +1,117 @@
+{
+    "type": "Collection",
+    "stac_version": "1.0.0",
+    "id": "nested-eagle-conus",
+    "title": "NOAA Nested-EAGLE (CONUS)",
+    "description": "AI weather forecasts from the Nested-EAGLE model. Produces 240-hour forecasts every 6 hours by nesting a high-resolution (6km) CONUS domain within a global 0.25-degree grid. Each forecast cycle produces separate global and CONUS regional files.",
+    "license": "proprietary",
+    "keywords": [
+        "weather",
+        "forecast",
+        "AI",
+        "NOAA",
+        "EAGLE",
+        "HRRR",
+        "GFS",
+        "CONUS",
+        "global"
+    ],
+    "providers": [
+        {
+            "name": "NOAA/EPIC",
+            "roles": [
+                "producer"
+            ],
+            "url": "https://epic.noaa.gov/"
+        },
+        {
+            "name": "Microsoft Planetary Computer",
+            "roles": [
+                "host"
+            ],
+            "url": "https://planetarycomputer.microsoft.com/"
+        }
+    ],
+    "extent": {
+        "spatial": {
+            "bbox": [
+                [
+                    -131.53,
+                    22.75,
+                    -63.61,
+                    51.32
+                ]
+            ]
+        },
+        "temporal": {
+            "interval": [
+                [
+                    "2024-10-01T00:00:00Z",
+                    null
+                ]
+            ]
+        }
+    },
+    "summaries": {
+        "nested-eagle:output_type": [
+            "Nested-EAGLE CONUS Domain"
+        ],
+        "nested-eagle:variables": [
+            "10m_meridional_wind",
+            "10m_zonal_wind",
+            "2m_specific_humidity",
+            "2m_temperature",
+            "80m_meridional_wind",
+            "80m_zonal_wind",
+            "geopotential_height",
+            "meridional_wind",
+            "specific_humidity",
+            "surface_pressure",
+            "surface_temperature",
+            "temperature",
+            "total_precipitation_6hr",
+            "vertical_velocity",
+            "zonal_wind"
+        ],
+        "nested-eagle:pressure_levels": [
+            100,
+            150,
+            200,
+            250,
+            300,
+            400,
+            500,
+            600,
+            700,
+            850,
+            925,
+            1000
+        ],
+        "nested-eagle:conus_resolution_km": [
+            6
+        ],
+        "forecast:horizon": [
+            "PT240H"
+        ],
+        "forecast:step_hours": [
+            "PT6H"
+        ]
+    },
+    "item_assets": {
+        "conus": {
+            "type": "application/netcdf",
+            "title": "CONUS Forecast (6km)",
+            "roles": [
+                "data"
+            ],
+            "description": "CONUS regional forecast on 6km grid"
+        }
+    },
+    "links": [
+        {
+            "rel": "self",
+            "href": "./stac_collection_conus.json",
+            "type": "application/json"
+        }
+    ]
+}

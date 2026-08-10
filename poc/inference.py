@@ -1,11 +1,12 @@
+"""Run Nested-EAGLE inference for a single resolved forecast cycle."""
+
 import argparse
 import os
-import yaml
-from eagle.tools.inference import main as eagle_inference
 
 import utils
-
-from config import TRIM_EDGE, MIN_DISTANCE_KM, FREQ, LEAD_TIME
+import yaml
+from config import FREQ, LEAD_TIME, MIN_DISTANCE_KM, TRIM_EDGE
+from eagle.tools.inference import main as eagle_inference
 
 
 def prep_config(
@@ -18,6 +19,7 @@ def prep_config(
     min_distance_km=MIN_DISTANCE_KM,
     freq=FREQ,
 ):
+    """Build the inference YAML config for one cycle and return its path."""
     init_str = ic_timestamp.strftime("%Y-%m-%dT%H")
 
     folder_structure = ic_timestamp.strftime("%Y/%m/%d/%H")
@@ -57,9 +59,9 @@ def run(
     checkpoint_path,
     input_path,
     output_path,
+    ic_timestamp,
 ):
-    ic_timestamp = utils.get_nrt_timestamp()
-
+    """Execute model inference using the generated cycle-specific config."""
     config_path = prep_config(
         ic_timestamp=ic_timestamp,
         lead_time=lead_time,
@@ -76,8 +78,11 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--input_dir", type=str, required=True)
     parser.add_argument("--checkpoint", type=str, required=True)
-
+    parser.add_argument("--run_context", required=False)
     args = parser.parse_args()
+
+    ic_timestamp = utils.resolve_ic_timestamp(args.run_context)
+
     input_path = args.input_dir
     output_path = args.output_dir
     checkpoint_path = args.checkpoint
@@ -87,4 +92,5 @@ if __name__ == "__main__":
         checkpoint_path=checkpoint_path,
         input_path=input_path,
         output_path=output_path,
+        ic_timestamp=ic_timestamp,
     )
